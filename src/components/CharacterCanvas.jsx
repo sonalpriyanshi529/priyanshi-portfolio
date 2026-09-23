@@ -86,7 +86,8 @@ export default function CharacterCanvas({ heroRef, className = "" }) {
     }
 
     function updateTarget() {
-      if (!finePointer.matches || !s.pointer.active) {
+      const usingTouch = s.pointerSource === "touch";
+      if (!s.pointer.active || (!usingTouch && !finePointer.matches)) {
         s.target = 0;
         s.inDead = true;
         return;
@@ -141,10 +142,26 @@ export default function CharacterCanvas({ heroRef, className = "" }) {
       s.pointer.x = e.clientX;
       s.pointer.y = e.clientY;
       s.pointer.active = true;
+      s.pointerSource = "mouse";
     };
     const onLeave = () => {
       s.pointer.active = false;
     };
+
+    // Touch tracking: same pointer state/logic as the mouse path above, scoped
+    // to the hero so normal page scrolling elsewhere is untouched. Listeners
+    // are passive (no preventDefault) so vertical scrolling still works even
+    // while a finger is over the hero.
+    const onTouchMove = (e) => {
+      const t = e.touches[0];
+      if (!t) return;
+      s.pointer.x = t.clientX;
+      s.pointer.y = t.clientY;
+      s.pointer.active = true;
+      s.pointerSource = "touch";
+    };
+    // touchend intentionally has no handler: the last tracked position/frame
+    // is kept as-is, matching the required "do not reset" behavior.
 
     // Load center first so something shows immediately, then all 64 frames.
     loadImage(CENTER_SRC)
@@ -173,6 +190,8 @@ export default function CharacterCanvas({ heroRef, className = "" }) {
     window.addEventListener("pointermove", onMove, { passive: true });
     document.documentElement.addEventListener("pointerleave", onLeave);
     window.addEventListener("blur", onLeave);
+    hero.addEventListener("touchstart", onTouchMove, { passive: true });
+    hero.addEventListener("touchmove", onTouchMove, { passive: true });
     const io = new IntersectionObserver(([entry]) => {
       s.visible = entry.isIntersecting;
     });
@@ -188,6 +207,8 @@ export default function CharacterCanvas({ heroRef, className = "" }) {
       window.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("pointerleave", onLeave);
       window.removeEventListener("blur", onLeave);
+      hero.removeEventListener("touchstart", onTouchMove);
+      hero.removeEventListener("touchmove", onTouchMove);
     };
   }, [heroRef]);
 
